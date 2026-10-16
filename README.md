@@ -13,7 +13,7 @@ Udostępnianie urządzeń USB przez sieć, podobnie jak VirtualHere. Urządzenie
 
 ## 1. Serwer (Linux)
 
-Na komputerze, do którego wpinasz urządzenia, wykonaj:
+Na komputerze z Linuksem (Debian/Ubuntu/Raspberry Pi OS/Alpine), do którego wpinasz urządzenia, wykonaj:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/smartPam/usbshare/main/deploy/install.sh | sudo bash
@@ -37,16 +37,27 @@ cd /opt/usbshare && sudo docker compose up -d # zastosuj zmiany
 sudo systemctl start usbshare-update          # aktualizacja teraz
 ```
 
-### Proxmox: kontener LXC
+### Proxmox: kontener LXC (zalecane – najmniej zasobów)
 
-Kontener LXC korzysta z jądra hosta, więc moduł trzeba załadować **na hoście Proxmox** (Shell węzła):
+Kontener LXC korzysta z jądra Proxmoxa, więc jest najlżejszy (Alpine: ~256 MB RAM, 2 GB dysku z zapasem). W **Shell węzła Proxmox** (nie w kontenerze) uruchom:
 
 ```bash
-modprobe usbip-host
-printf 'usbip-core\nusbip-host\n' > /etc/modules-load.d/usbip.conf
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/smartPam/usbshare/main/deploy/proxmox-lxc.sh)"
 ```
 
-Kontener musi być **uprzywilejowany** (*Unprivileged container: No*), bo serwer zapisuje do `/sys/bus/usb`. Wyłącz go i dopisz do `/etc/pve/lxc/<ID>.conf` na hoście:
+Skrypt:
+- ładuje moduł `usbip-host` w jądrze Proxmoxa (także po restarcie),
+- pobiera najnowszy szablon Alpine,
+- tworzy uprzywilejowany kontener z uprawnieniami do `/sys/bus/usb` i Dockera, uruchamiany razem z Proxmoxem,
+- instaluje w nim USBShare i wypisuje adres, hasło oraz odcisk certyfikatu.
+
+Opcje podajesz przed poleceniem, np. `CTID=150 IP=192.168.1.50/24 GW=192.168.1.1 STORAGE=local-lvm bash -c "$(curl …)"`.
+
+Kontener widzi wszystkie urządzenia USB hosta. Urządzenia przekazane do maszyn wirtualnych wyklucz w `/opt/usbshare/.env` przez `USBSHARE_DENY`.
+
+<details><summary>Ręczna konfiguracja istniejącego kontenera</summary>
+
+Na hoście: `modprobe usbip-host` i `printf 'usbip-core\nusbip-host\n' > /etc/modules-load.d/usbip.conf`. Kontener musi być uprzywilejowany (*Unprivileged container: No*). Dopisz do `/etc/pve/lxc/<ID>.conf`:
 
 ```
 features: nesting=1
@@ -56,9 +67,8 @@ lxc.cap.drop:
 lxc.mount.auto: proc:rw sys:rw cgroup:rw
 ```
 
-Potem uruchom kontener i ponów instalację. Kontener widzi wszystkie urządzenia USB hosta, dlatego przez `USBSHARE_DENY` wyklucz urządzenia, których nie chcesz udostępniać, oraz te przekazane do maszyn wirtualnych.
-
-Jeśli nie chcesz uprzywilejowanego LXC, uruchom serwer w maszynie wirtualnej (np. Debian) z przekazanym kontrolerem USB albo urządzeniami USB.
+Potem uruchom w kontenerze zwykły instalator (działa na Debianie i Alpine).
+</details>
 
 ### Ustawienia (`/opt/usbshare/.env`)
 
