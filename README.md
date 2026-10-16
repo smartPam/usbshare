@@ -52,7 +52,7 @@ Huby USB nie są udostępniane. Urządzenie podłączone przez klienta jest odł
 ## 2. Klient (Windows 10/11)
 
 1. Zainstaluj sterownik **usbip-win2**, pobierając instalator z [github.com/vadimgrn/usbip-win2/releases](https://github.com/vadimgrn/usbip-win2/releases). Sterownik jest podpisany, więc nie trzeba włączać trybu testowego.
-2. Pobierz `usbshare-client-windows-amd64.exe` z zakładki **Releases** tego repozytorium.
+2. Pobierz klienta: [usbshare-client-windows-amd64.exe](https://github.com/smartPam/usbshare/releases/latest/download/usbshare-client-windows-amd64.exe) (zawsze najnowsza wersja).
 3. Uruchom plik. Otworzy się okno w przeglądarce (`http://127.0.0.1:7601`).
 4. Kliknij **Dodaj serwer**, wpisz IP serwera, port `7600` i hasło.
 5. Przy wybranym urządzeniu kliknij **Podłącz**. Windows wykryje je jak zwykłe urządzenie USB.
@@ -71,13 +71,9 @@ Konfiguracja klienta jest w `%APPDATA%\USBShare\config.json`, a log w `client.lo
 GitHub Actions (`.github/workflows/build.yml`) przy każdym pushu do `main`:
 - uruchamia testy,
 - buduje obraz `ghcr.io/smartpam/usbshare-server:latest` dla amd64, arm64 i armv7, który serwery same pobiorą przy aktualizacji,
-- buduje pliki `.exe` klienta (do pobrania w zakładce *Actions → Artifacts*).
+- publikuje wydanie **latest** z plikami `.exe` klienta i plikami serwera w zakładce **Releases**.
 
-Nowe wydanie z plikami `.exe` w zakładce **Releases** robisz tak:
-
-```bash
-git tag v1.0.1 && git push --tags
-```
+Wydanie z numerem wersji (opcjonalnie): `git tag v1.0.1 && git push --tags`.
 
 > Za pierwszym razem ustaw pakiet `usbshare-server` jako **Public** (GitHub → Packages → usbshare-server → Package settings → Change visibility). Bez tego serwery nie pobiorą obrazu bez logowania.
 

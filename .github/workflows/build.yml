@@ -50,6 +50,16 @@ jobs:
         with:
           name: usbshare-binaries
           path: dist/*
+      - name: Wydanie "latest" (każdy push do main)
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete latest --cleanup-tag --yes || true
+          gh release create latest dist/* --target "$GITHUB_SHA" --latest \
+            --title "USBShare – najnowsza wersja" \
+            --notes "Automatyczne wydanie z gałęzi main (commit ${GITHUB_SHA::7}). Klient Windows: usbshare-client-windows-amd64.exe. Serwer: zobacz README (instalacja przez Docker)."
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
