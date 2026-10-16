@@ -28,7 +28,7 @@ printf 'usbip-core\nusbip-host\n' > /etc/modules-load.d/usbip.conf
 TSTORE="${TEMPLATE_STORAGE:-local}"
 say "Szukam najnowszego szablonu Alpine…"
 pveam update >/dev/null 2>&1 || true
-TEMPLATE="$(pveam available --section system | awk '{print $2}' | grep -E '^alpine-3\.[0-9]+-default_[^ ]*_amd64\.tar\.(xz|gz|zst)$' | sort -V | tail -1)"
+TEMPLATE="$(pveam available --section system | awk '{print $2}' | grep -E '^alpine-3\.[0-9]+-default_[^ ]*_amd64\.tar\.(xz|gz|zst)$' | sort -V | tail -1 || true)"
 [ -n "$TEMPLATE" ] || die "nie znaleziono szablonu Alpine (pveam available --section system)."
 if ! grep -q "$TEMPLATE" <<<"$(pveam list "$TSTORE")"; then
   say "Pobieram $TEMPLATE do $TSTORE…"
