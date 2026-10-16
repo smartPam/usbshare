@@ -3,8 +3,8 @@
 # Użycie:  curl -fsSL https://raw.githubusercontent.com/smartPam/usbshare/main/deploy/install.sh | sudo bash
 #
 # Co robi:
-#   1. instaluje Dockera (jeśli go nie ma),
-#   2. ładuje moduły jądra usbip-core i usbip-host (także po restarcie),
+#   1. sprawdza/ładuje moduły jądra usbip-core i usbip-host (w LXC: podaje instrukcje dla hosta),
+#   2. instaluje Dockera (jeśli go nie ma),
 #   3. tworzy /opt/usbshare z docker-compose.yml i .env (losowe hasło),
 #   4. uruchamia kontener (startuje sam po restarcie komputera),
 #   5. dodaje codzienną automatyczną aktualizację (timer systemd).
@@ -20,26 +20,58 @@ die() { printf '\033[1;31mBŁĄD:\033[0m %s\n' "$*" >&2; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "uruchom jako root (sudo)."
 
-# 1. Docker
+# 1. Moduły jądra
+VIRT="$(systemd-detect-virt -c 2>/dev/null || true)"
+lxc_help() {
+  cat >&2 <<'EOT'
+
+Ten system to kontener LXC (np. na Proxmox). Kontener używa jądra hosta, więc:
+
+ 1) Na HOŚCIE Proxmox (Shell węzła, nie kontenera) wykonaj:
+      modprobe usbip-host
+      printf 'usbip-core\nusbip-host\n' > /etc/modules-load.d/usbip.conf
+
+ 2) Kontener musi być UPRZYWILEJOWANY (Unprivileged container = No).
+    Wyłącz go i dopisz na hoście do /etc/pve/lxc/<ID>.conf:
+      features: nesting=1
+      lxc.apparmor.profile: unconfined
+      lxc.cgroup2.devices.allow: a
+      lxc.cap.drop:
+      lxc.mount.auto: proc:rw sys:rw cgroup:rw
+
+ 3) Uruchom kontener i ponów instalację.
+EOT
+}
+if [ -d /sys/bus/usb/drivers/usbip-host ]; then
+  say "Moduł usbip-host jest załadowany."
+elif [ "$VIRT" = "lxc" ]; then
+  lxc_help
+  die "moduł usbip-host nie jest załadowany na hoście."
+else
+  say "Ładuję moduły jądra usbip…"
+  if ! modprobe usbip-host 2>/dev/null; then
+    if command -v apt-get >/dev/null 2>&1; then
+      say "Brak modułu – instaluję linux-modules-extra / usbip…"
+      apt-get update -qq || true
+      apt-get install -y -qq "linux-modules-extra-$(uname -r)" >/dev/null 2>&1 || true
+      apt-get install -y -qq usbip >/dev/null 2>&1 || apt-get install -y -qq linux-tools-generic >/dev/null 2>&1 || true
+    fi
+    modprobe usbip-host || die "jądro nie ma modułu usbip-host (CONFIG_USBIP_HOST). Zainstaluj moduły dla $(uname -r)."
+  fi
+  printf 'usbip-core\nusbip-host\n' > /etc/modules-load.d/usbshare.conf
+fi
+if [ ! -w /sys/bus/usb/drivers_probe ]; then
+  [ "$VIRT" = "lxc" ] && lxc_help
+  die "/sys jest tylko do odczytu – serwer nie może przełączać urządzeń USB."
+fi
+
+# 2. Docker
 if ! command -v docker >/dev/null 2>&1; then
   say "Instaluję Dockera…"
   curl -fsSL https://get.docker.com | sh
 fi
 systemctl enable --now docker >/dev/null 2>&1 || true
 docker compose version >/dev/null 2>&1 || die "brak 'docker compose' (plugin). Zainstaluj pakiet docker-compose-plugin."
-
-# 2. Moduły jądra
-say "Ładuję moduły jądra usbip…"
-if ! modprobe usbip-host 2>/dev/null; then
-  if command -v apt-get >/dev/null 2>&1; then
-    say "Brak modułu – instaluję linux-modules-extra / usbip…"
-    apt-get update -qq || true
-    apt-get install -y -qq "linux-modules-extra-$(uname -r)" >/dev/null 2>&1 || true
-    apt-get install -y -qq usbip >/dev/null 2>&1 || apt-get install -y -qq linux-tools-generic >/dev/null 2>&1 || true
-  fi
-  modprobe usbip-host || die "jądro nie ma modułu usbip-host (CONFIG_USBIP_HOST). Zainstaluj moduły dla $(uname -r)."
-fi
-printf 'usbip-core\nusbip-host\n' > /etc/modules-load.d/usbshare.conf
 
 # 3. Pliki
 mkdir -p "$DIR/data"

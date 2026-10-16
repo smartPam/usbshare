@@ -37,6 +37,29 @@ cd /opt/usbshare && sudo docker compose up -d # zastosuj zmiany
 sudo systemctl start usbshare-update          # aktualizacja teraz
 ```
 
+### Proxmox: kontener LXC
+
+Kontener LXC korzysta z jądra hosta, więc moduł trzeba załadować **na hoście Proxmox** (Shell węzła):
+
+```bash
+modprobe usbip-host
+printf 'usbip-core\nusbip-host\n' > /etc/modules-load.d/usbip.conf
+```
+
+Kontener musi być **uprzywilejowany** (*Unprivileged container: No*), bo serwer zapisuje do `/sys/bus/usb`. Wyłącz go i dopisz do `/etc/pve/lxc/<ID>.conf` na hoście:
+
+```
+features: nesting=1
+lxc.apparmor.profile: unconfined
+lxc.cgroup2.devices.allow: a
+lxc.cap.drop:
+lxc.mount.auto: proc:rw sys:rw cgroup:rw
+```
+
+Potem uruchom kontener i ponów instalację. Kontener widzi wszystkie urządzenia USB hosta, dlatego przez `USBSHARE_DENY` wyklucz urządzenia, których nie chcesz udostępniać, oraz te przekazane do maszyn wirtualnych.
+
+Jeśli nie chcesz uprzywilejowanego LXC, uruchom serwer w maszynie wirtualnej (np. Debian) z przekazanym kontrolerem USB albo urządzeniami USB.
+
 ### Ustawienia (`/opt/usbshare/.env`)
 
 | Zmienna | Opis |
