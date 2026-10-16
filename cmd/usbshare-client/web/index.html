@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USBShare – zdalne USB</title>
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --ink:#1c2230; --muted:#5d6678; --line:#e1e4ea;
+  --accent:#1f6feb; --accent-ink:#fff; --ok:#1a7f37; --warn:#9a6700; --bad:#cf222e;
+  --chip-ok:#dafbe1; --chip-use:#fff1c2; --chip-bad:#ffe1e1; --chip-mine:#dbe9ff;
+  --radius:10px; --mono:ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f1218; --panel:#171b23; --ink:#e6e9ef; --muted:#9aa3b5; --line:#2a303c;
+  --accent:#4c8dff; --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+  --chip-ok:#12321c; --chip-use:#3a2e0a; --chip-bad:#3d1416; --chip-mine:#14294d;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.2px}
+header .who{color:var(--muted);font-size:13px}
+header .sp{flex:1}
+button{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 12px;border-radius:7px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+button.danger{color:var(--bad)}
+button:disabled{opacity:.55;cursor:default}
+button.small{padding:3px 9px;font-size:13px}
+main{max-width:980px;margin:0 auto;padding:18px 16px 40px}
+.banner{background:var(--chip-use);border:1px solid var(--warn);border-radius:var(--radius);padding:10px 14px;margin-bottom:14px}
+.banner a{color:var(--accent)}
+.server{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:14px;overflow:hidden}
+.shead{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted);flex:none}
+.dot.online{background:var(--ok)} .dot.error,.dot.fp_mismatch{background:var(--bad)}
+.sname{font-weight:600}
+.smeta{color:var(--muted);font-size:12.5px}
+.shead .sp{flex:1}
+.serr{padding:10px 14px;color:var(--bad);border-bottom:1px solid var(--line);font-size:13px}
+.serr code,.fp{font-family:var(--mono);font-size:12px;word-break:break-all}
+.dev{display:grid;grid-template-columns:34px 1fr auto;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+.dev:last-child{border-bottom:0}
+.icon{width:34px;height:34px;border-radius:8px;background:var(--bg);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--muted);border:1px solid var(--line)}
+.dname{font-weight:550}
+.dmeta{color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+.chip{display:inline-block;padding:1px 8px;border-radius:20px;font-size:12px;margin-left:6px;vertical-align:1px}
+.chip.available{background:var(--chip-ok);color:var(--ok)}
+.chip.in_use{background:var(--chip-use);color:var(--warn)}
+.chip.error{background:var(--chip-bad);color:var(--bad)}
+.chip.mine{background:var(--chip-mine);color:var(--accent)}
+.acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.acts label{font-size:12.5px;color:var(--muted);display:flex;gap:4px;align-items:center;cursor:pointer}
+.empty{padding:14px;color:var(--muted)}
+.intro{background:var(--panel);border:1px dashed var(--line);border-radius:var(--radius);padding:28px;text-align:center;color:var(--muted)}
+details.log{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);margin-top:20px}
+details.log summary{padding:10px 14px;cursor:pointer;color:var(--muted)}
+.logs{max-height:260px;overflow:auto;padding:0 14px 12px;font-family:var(--mono);font-size:12px}
+.logs .błąd{color:var(--bad)}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--ink);padding:20px;width:min(440px,92vw)}
+dialog::backdrop{background:rgba(0,0,0,.35)}
+dialog h2{margin:0 0 14px;font-size:16px}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.field span{font-size:12.5px;color:var(--muted)}
+input[type=text],input[type=password],input[type=number]{font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+.row{display:flex;gap:10px}
+.row .field{flex:1}
+.dbtns{display:flex;justify-content:flex-end;gap:8px;margin-top:6px}
+.formerr{color:var(--bad);font-size:13px;min-height:18px}
+@media (max-width:640px){.dev{grid-template-columns:34px 1fr}.acts{grid-column:1/-1;justify-content:flex-start}header .who{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>USBShare</h1><span class="who" id="who"></span><span class="sp"></span>
+  <button class="primary" onclick="openServer()">Dodaj serwer</button>
+  <button onclick="openSettings()">Ustawienia</button>
+</header>
+<main>
+  <div id="banners"></div>
+  <div id="servers"></div>
+  <details class="log"><summary>Dziennik zdarzeń</summary><div class="logs" id="logs"></div></details>
+</main>
+
+<dialog id="dlgServer">
+  <h2 id="dlgServerTitle">Dodaj serwer</h2>
+  <form id="fServer" method="dialog">
+    <input type="hidden" name="id">
+    <label class="field"><span>Nazwa (dowolna)</span><input type="text" name="name" placeholder="np. Raspberry w biurze"></label>
+    <div class="row">
+      <label class="field" style="flex:3"><span>Adres IP lub nazwa hosta</span><input type="text" name="host" required placeholder="192.168.1.50"></label>
+      <label class="field" style="flex:1"><span>Port</span><input type="number" name="port" value="7600" min="1" max="65535"></label>
+    </div>
+    <label class="field"><span id="pwLabel">Hasło serwera</span><input type="password" name="password" autocomplete="off"></label>
+    <div class="formerr" id="serverErr"></div>
+    <div class="dbtns"><button type="button" onclick="dlgServer.close()">Anuluj</button><button class="primary" type="submit">Zapisz</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgSettings">
+  <h2>Ustawienia</h2>
+  <form id="fSettings" method="dialog">
+    <label class="field"><span>Ścieżka do usbip.exe (usbip-win2)</span><input type="text" name="usbip_path"></label>
+    <label class="field" id="autoRow" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" name="autostart"> <span style="color:var(--ink)">Uruchamiaj klienta razem z Windows</span></label>
+    <div class="formerr" id="settingsErr"></div>
+    <div class="dbtns">
+      <button type="button" class="danger" onclick="quitClient()" style="margin-right:auto">Zakończ klienta</button>
+      <button type="button" onclick="dlgSettings.close()">Anuluj</button><button class="primary" type="submit">Zapisz</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+"use strict";
+let token = "";
+try {
+  const m = location.hash.match(/t=([0-9a-f]+)/);
+  if (m) { token = m[1]; localStorage.setItem("usbshare_token", token); history.replaceState(null, "", "/"); }
+  else token = localStorage.getItem("usbshare_token") || "";
+} catch (e) { const m = location.hash.match(/t=([0-9a-f]+)/); if (m) token = m[1]; }
+
+let S = null;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function api(path, body) {
+  const r = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: {"X-USBShare-Token": token, "Content-Type": "application/json"},
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  const j = await r.json().catch(() => ({}));
+  if (r.status === 401) throw new Error("token");
+  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+
+const CLASS = {1:"AUD",2:"COM",3:"HID",5:"PHY",6:"IMG",7:"PRN",8:"DISK",9:"HUB",10:"COM",11:"CARD",13:"SEC",14:"CAM",15:"MED",224:"BT",239:"MULTI",254:"APP",255:"VEND"};
+function devClass(d) {
+  let c = d.class;
+  if ((c === 0 || c === 239) && d.if_classes && d.if_classes.length) {
+    const pref = [14,8,1,3,7,224,2,10,11,255];
+    c = pref.find(p => d.if_classes.includes(p)) ?? d.if_classes[0];
+  }
+  return CLASS[c] || "USB";
+}
+
+function since(ts) {
+  if (!ts) return "";
+  const m = Math.floor((Date.now()/1000 - ts) / 60);
+  return m < 1 ? "przed chwilą" : m < 60 ? m + " min" : Math.floor(m/60) + " h " + (m%60) + " min";
+}
+
+function render() {
+  if (!S) return;
+  $("who").textContent = "komputer: " + S.client + " · v" + S.version;
+  let b = "";
+  if (!S.usbip_found) {
+    b += `<div class="banner"><b>Nie znaleziono usbip-win2.</b> Ten program używa podpisanego sterownika usbip-win2 do tworzenia wirtualnych portów USB.
+      Pobierz instalator z <a href="https://github.com/vadimgrn/usbip-win2/releases" target="_blank" rel="noopener">github.com/vadimgrn/usbip-win2/releases</a>,
+      zainstaluj i odśwież stronę. Szukam w: <code>${esc(S.usbip_path)}</code></div>`;
+  } else if (S.ports_error) {
+    b += `<div class="banner">Problem z usbip: ${esc(S.ports_error)}</div>`;
+  }
+  $("banners").innerHTML = b;
+
+  if (!S.servers.length) {
+    $("servers").innerHTML = `<div class="intro"><p>Brak serwerów.</p><p>Dodaj serwer USBShare działający na Linuksie (adres IP, port 7600 i hasło z pliku docker-compose).</p><button class="primary" onclick="openServer()">Dodaj serwer</button></div>`;
+  } else {
+    $("servers").innerHTML = S.servers.map(renderServer).join("");
+  }
+  $("logs").innerHTML = S.logs.slice().reverse().map(l => `<div class="${esc(l.level)}">${esc(l.time)} ${esc(l.msg)}</div>`).join("") || "—";
+}
+
+function renderServer(s) {
+  const st = {online:"połączony", connecting:"łączenie…", error:"brak połączenia", fp_mismatch:"zmieniony certyfikat!"}[s.status] || s.status;
+  let h = `<section class="server"><div class="shead"><span class="dot ${esc(s.status)}"></span>
+    <div><div class="sname">${esc(s.name)}</div><div class="smeta">${esc(s.host)}:${s.port} · ${esc(st)}${s.server_name ? " · serwer „" + esc(s.server_name) + "” v" + esc(s.server_version) : ""}</div></div>
+    <span class="sp"></span>
+    <button class="small" onclick="openServer(${s.id})">Edytuj</button>
+    <button class="small danger" onclick="delServer(${s.id})">Usuń</button></div>`;
+  if (s.status === "fp_mismatch") {
+    h += `<div class="serr">Certyfikat serwera jest inny niż zapamiętany. Jeśli serwer był reinstalowany, porównaj odcisk z logiem serwera
+      (<code>docker logs usbshare-server</code>) i zaakceptuj.<br>Nowy odcisk: <code>${esc(s.seen_fp)}</code><br>
+      <button class="small" style="margin-top:6px" onclick="trust(${s.id})">Ufam nowemu certyfikatowi</button></div>`;
+  } else if (s.status === "error") {
+    h += `<div class="serr">${esc(s.error)}</div>`;
+  }
+  if (s.status === "online") {
+    if (!s.devices.length) h += `<div class="empty">Serwer nie udostępnia żadnych urządzeń USB.</div>`;
+    h += s.devices.map(d => renderDev(s, d)).join("");
+  }
+  return h + `</section>`;
+}
+
+function renderDev(s, d) {
+  const name = [d.manufacturer, d.product].filter(Boolean).join(" ") || "Urządzenie USB";
+  const mine = d.attached_port >= 0;
+  let chip, btns = "";
+  const a = `${s.id},'${esc(d.busid)}'`;
+  if (d.busy === "attaching") chip = `<span class="chip in_use">podłączanie…</span>`;
+  else if (d.busy === "detaching") chip = `<span class="chip in_use">odłączanie…</span>`;
+  else if (mine) chip = `<span class="chip mine">podłączone tutaj · port ${d.attached_port}</span>`;
+  else if (d.state === "available") chip = `<span class="chip available">dostępne</span>`;
+  else if (d.state === "in_use") chip = `<span class="chip in_use">używa: ${esc(d.used_by)}${d.since ? " · " + since(d.since) : ""}</span>`;
+  else chip = `<span class="chip error">${esc(d.note || "błąd")}</span>`;
+  if (mine) btns += `<button class="small" ${d.busy ? "disabled" : ""} onclick="act('detach',${a})">Odłącz</button>`;
+  else if (d.state === "available") btns += `<button class="small primary" ${d.busy || !S.usbip_found ? "disabled" : ""} onclick="act('attach',${a})">Podłącz</button>`;
+  else if (d.state === "in_use") btns += `<button class="small danger" onclick="forceRelease(${a})" title="Rozłącz innego użytkownika">Zwolnij</button>`;
+  btns += `<label title="Podłączaj automatycznie, gdy urządzenie jest dostępne"><input type="checkbox" ${d.auto ? "checked" : ""} onchange="setAuto(${a},this.checked)">auto</label>`;
+  return `<div class="dev"><div class="icon">${devClass(d)}</div>
+    <div><div class="dname">${esc(name)}${chip}</div>
+    <div class="dmeta">${esc(d.vendor_id)}:${esc(d.product_id)} · ${esc(d.busid)} · ${esc(d.speed)}${d.serial ? " · SN " + esc(d.serial) : ""}</div></div>
+    <div class="acts">${btns}</div></div>`;
+}
+
+async function refresh() {
+  try { S = await api("/api/state"); render(); }
+  catch (e) {
+    if (e.message === "token") $("servers").innerHTML = `<div class="intro">Brak dostępu. Otwórz klienta USBShare z menu Start (skrót dodaje klucz dostępu do adresu).</div>`;
+    else $("banners").innerHTML = `<div class="banner">Klient USBShare nie odpowiada – czy program jest uruchomiony?</div>`;
+  }
+}
+
+async function act(cmd, id, busid) { try { await api("/api/" + cmd, {id, busid}); } catch (e) { alert(e.message); } refresh(); }
+async function setAuto(id, busid, on) { try { await api("/api/auto", {id, busid, on}); } catch (e) { alert(e.message); } refresh(); }
+async function forceRelease(id, busid) {
+  if (!confirm("Rozłączyć to urządzenie u innego użytkownika?")) return;
+  act("release", id, busid);
+}
+async function trust(id) { await api("/api/server/trust", {id}); refresh(); }
+async function delServer(id) {
+  const s = S.servers.find(x => x.id === id);
+  if (!confirm(`Usunąć serwer „${s.name}”?`)) return;
+  await api("/api/server/delete", {id}); refresh();
+}
+
+function openServer(id) {
+  const f = $("fServer"); f.reset(); $("serverErr").textContent = "";
+  const s = id ? S.servers.find(x => x.id === id) : null;
+  $("dlgServerTitle").textContent = s ? "Edytuj serwer" : "Dodaj serwer";
+  $("pwLabel").textContent = s ? "Hasło serwera (puste = bez zmian)" : "Hasło serwera";
+  f.id.value = s ? s.id : "";
+  f.name.value = s ? s.name : ""; f.host.value = s ? s.host : ""; f.port.value = s ? s.port : 7600;
+  $("dlgServer").showModal(); f.host.focus();
+}
+$("fServer").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    await api("/api/server/save", {id: +f.id.value || 0, name: f.name.value, host: f.host.value, port: +f.port.value || 7600, password: f.password.value});
+    $("dlgServer").close(); refresh();
+  } catch (e) { $("serverErr").textContent = e.message; }
+});
+
+function openSettings() {
+  const f = $("fSettings"); $("settingsErr").textContent = "";
+  f.usbip_path.value = S.usbip_path; f.autostart.checked = S.autostart;
+  $("autoRow").style.display = S.autostart_supported ? "flex" : "none";
+  $("dlgSettings").showModal();
+}
+$("fSettings").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const f = ev.target;
+  const body = {usbip_path: f.usbip_path.value};
+  if (S.autostart_supported) body.autostart = f.autostart.checked;
+  try { await api("/api/settings", body); $("dlgSettings").close(); refresh(); }
+  catch (e) { $("settingsErr").textContent = e.message; }
+});
+async function quitClient() {
+  if (!confirm("Zakończyć klienta? Podłączone urządzenia zostaną odłączone.")) return;
+  try { await api("/api/quit", {}); } catch (e) {}
+  document.body.innerHTML = "<main><div class='intro'>Klient USBShare został zamknięty.</div></main>";
+}
+
+refresh();
+setInterval(() => { if (!document.querySelector("dialog[open]")) refresh(); }, 2000);
+</script>
+</body>
+</html>

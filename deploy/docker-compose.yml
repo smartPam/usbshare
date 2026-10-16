@@ -1,0 +1,27 @@
+# Serwer USBShare – udostępnia USB tego komputera w sieci.
+# Hasło i nazwa są w pliku .env obok tego pliku (tworzy go install.sh).
+services:
+  usbshare-server:
+    image: ${USBSHARE_IMAGE:-ghcr.io/smartpam/usbshare-server:latest}
+    container_name: usbshare-server
+    restart: unless-stopped
+    # host: serwer widzi sieć hosta (port 7600), a jądro dostaje gniazdo z tej samej przestrzeni sieci
+    network_mode: host
+    # privileged: zapis do /sys/bus/usb (bind/unbind urządzeń, usbip_sockfd)
+    privileged: true
+    environment:
+      USBSHARE_PASSWORD: ${USBSHARE_PASSWORD:?Ustaw USBSHARE_PASSWORD w pliku .env}
+      USBSHARE_NAME: ${USBSHARE_NAME:-}
+      USBSHARE_LISTEN: ${USBSHARE_LISTEN:-:7600}
+      # Lista urządzeń do udostępnienia (puste = wszystkie), np. "0403:6001,1-1.2"
+      USBSHARE_ALLOW: ${USBSHARE_ALLOW:-}
+      # Urządzenia, których NIE udostępniać, np. klawiatura serwera "046d:c52b"
+      USBSHARE_DENY: ${USBSHARE_DENY:-}
+    volumes:
+      - ./data:/data
+      - /lib/modules:/lib/modules:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
